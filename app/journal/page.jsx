@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import dayjs from "dayjs";
 
+
 const assetTypes = [
   { label: "Stock", value: "Stock" }, { label: "Crypto", value: "Crypto" },
   { label: "Forex", value: "Forex" }, { label: "Futures", value: "Futures" },
@@ -42,7 +43,7 @@ function formatDate(val) {
 
 export default function JournalPage() {
   const [user, setUser] = useState(null);
-  const [plan, setPlan] = useState("pro");
+  const [plan, setPlan] = useState("free");
   const [loading, setLoading] = useState(true);
   const [trades, setTrades] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -56,22 +57,22 @@ export default function JournalPage() {
   const [editForm] = Form.useForm();
   const [addMore, setAddMore] = useState(false);
 
- useEffect(() => {
+useEffect(() => {
   const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
     if (!currentUser) {
       window.location.href = "/login";
       return;
     }
     setUser(currentUser);
-    // Lấy plan từ Firestore
+    console.log("Current user UID:", currentUser.uid);
     const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-    setPlan(userDoc.exists() ? userDoc.data().plan || "free" : "free"); // fallback về free nếu chưa có
+    console.log("userDoc:", userDoc.data());
+    setPlan(userDoc.exists() ? userDoc.data().plan || "free" : "free");
     await fetchTrades(currentUser.uid);
     setLoading(false);
   });
   return () => unsubscribe();
 }, []);
-
 
   // Fetch và filter trade data
   async function fetchTrades(uid) {
@@ -90,7 +91,6 @@ export default function JournalPage() {
   // Filter logic
   useEffect(() => {
     let data = [...trades];
-    // Search
     if (search)
       data = data.filter(
         (t) =>
@@ -99,22 +99,21 @@ export default function JournalPage() {
             .includes(search.trim().toLowerCase()) ||
           (t.notes || "").toLowerCase().includes(search.trim().toLowerCase())
       );
-    // Filter nâng cao
     if (filter.asset_type)
       data = data.filter((t) => t.asset_type === filter.asset_type);
     if (filter.side)
       data = data.filter((t) => t.side === filter.side);
-    if (filter.strategy)
+    if (filter.strategy && isPro)
       data = data.filter((t) => (t.strategy || "") === filter.strategy);
-    if (filter.emotion)
+    if (filter.emotion && isPro)
       data = data.filter((t) => (t.emotion || "") === filter.emotion);
-    if (filter.currency)
+    if (filter.currency && isPro)
       data = data.filter((t) => t.currency === filter.currency);
-    if (filter.tags && filter.tags.length > 0)
+    if (filter.tags && isPro && filter.tags.length > 0)
       data = data.filter((t) => t.tags && filter.tags.some(tag => t.tags.includes(tag)));
-    if (filter.sl_min)
+    if (filter.sl_min && isPro)
       data = data.filter((t) => Number(t.stop_loss || 0) >= Number(filter.sl_min));
-    if (filter.tp_min)
+    if (filter.tp_min && isPro)
       data = data.filter((t) => Number(t.take_profit || 0) >= Number(filter.tp_min));
     if (filter.date_from)
       data = data.filter((t) =>
@@ -140,7 +139,7 @@ export default function JournalPage() {
         ...values,
         userId: user.uid,
         createdAt: serverTimestamp(),
-        plan: "pro",
+        plan: plan,
       });
       message.success("Đã thêm giao dịch!");
       setModalOpen(false);
@@ -194,19 +193,20 @@ export default function JournalPage() {
     }
   };
 
-  // Chiến lược, tag, cảm xúc... (dùng cho filter)
-  const strategyList = [
-    ...new Set(trades.map((t) => t.strategy).filter(Boolean)),
-  ];
-  const tagList = Array.from(
-    new Set(trades.flatMap((t) => t.tags || []))
-  );
-  const emotionList = [
-    ...new Set(trades.map((t) => t.emotion || "Bình thường")),
-  ];
-  const currencyList = Array.from(
-    new Set(trades.map((t) => t.currency).filter(Boolean))
-  );
+  // Danh sách filter động
+  const isPro = plan === "pro";
+  const strategyList = isPro
+    ? [...new Set(trades.map((t) => t.strategy).filter(Boolean))]
+    : [];
+  const tagList = isPro
+    ? Array.from(new Set(trades.flatMap((t) => t.tags || [])))
+    : [];
+  const emotionList = isPro
+    ? [...new Set(trades.map((t) => t.emotion || "Bình thường"))]
+    : [];
+  const currencyList = isPro
+    ? Array.from(new Set(trades.map((t) => t.currency).filter(Boolean)))
+    : [];
 
   if (loading)
     return (
@@ -269,8 +269,8 @@ export default function JournalPage() {
           <Col flex="auto">
             <Typography.Title level={4} style={{ margin: 0, color: "#2563eb" }}>
               DANH SÁCH GIAO DỊCH
-              <Tag color="gold" style={{ marginLeft: 10, fontWeight: 600, fontSize: 16 }}>
-                PRO
+              <Tag color={isPro ? "gold" : "blue"} style={{ marginLeft: 10, fontWeight: 600, fontSize: 16 }}>
+                {isPro ? "PRO" : "MIỄN PHÍ"}
               </Tag>
             </Typography.Title>
           </Col>
@@ -328,7 +328,7 @@ export default function JournalPage() {
                 <Space direction="vertical" style={{ width: "100%" }} size={3}>
                   <Typography.Text strong style={{ fontSize: 18 }}>
                     {trade.symbol} <Tag color="cyan">{trade.asset_type}</Tag>
-                    {trade.currency && (
+                    {isPro && trade.currency && (
                       <Tag color="geekblue" style={{ marginLeft: 8 }}>{trade.currency}</Tag>
                     )}
                   </Typography.Text>
@@ -345,23 +345,27 @@ export default function JournalPage() {
                         ? ((trade.exit_price - trade.entry_price) * (trade.size || 1)).toFixed(2)
                         : "--"}
                     </Tag>
-                    {typeof trade.stop_loss === "number" && (
+                    {isPro && typeof trade.stop_loss === "number" && (
                       <Tag color="volcano" style={{ marginLeft: 6 }}>SL: {trade.stop_loss}</Tag>
                     )}
-                    {typeof trade.take_profit === "number" && (
+                    {isPro && typeof trade.take_profit === "number" && (
                       <Tag color="lime" style={{ marginLeft: 6 }}>TP: {trade.take_profit}</Tag>
                     )}
                   </Typography.Text>
                   <Space>
-                    {trade.strategy && <Tag color="purple">{trade.strategy}</Tag>}
-                    {trade.tags && trade.tags.map((t, i) => <Tag color="blue" key={i}>{t}</Tag>)}
+                    {isPro && trade.strategy && <Tag color="purple">{trade.strategy}</Tag>}
+                    {isPro && trade.tags && trade.tags.map((t, i) => <Tag color="blue" key={i}>{t}</Tag>)}
                   </Space>
-                  <Typography.Text italic type="secondary" style={{ fontSize: 12 }}>
-                    {trade.notes}
-                  </Typography.Text>
-                  <Tag color={emotionColors[trade.emotion || ""] || "default"}>
-                    {trade.emotion || "Tâm lý: Bình thường"}
-                  </Tag>
+                  {isPro && (
+                    <Typography.Text italic type="secondary" style={{ fontSize: 12 }}>
+                      {trade.notes}
+                    </Typography.Text>
+                  )}
+                  {isPro && (
+                    <Tag color={emotionColors[trade.emotion || ""] || "default"}>
+                      {trade.emotion || "Tâm lý: Bình thường"}
+                    </Tag>
+                  )}
                 </Space>
               </Card>
             </Col>
@@ -408,24 +412,28 @@ export default function JournalPage() {
               { label: "Short", value: "Short" },
             ]} />
           </Form.Item>
-          <Form.Item label="Chiến lược" name="strategy">
-            <Select allowClear options={strategyList.map((s) => ({ label: s, value: s }))} />
-          </Form.Item>
-          <Form.Item label="Tags" name="tags">
-            <Select allowClear mode="tags" options={tagList.map((t) => ({ label: t, value: t }))} />
-          </Form.Item>
-          <Form.Item label="Tâm lý giao dịch" name="emotion">
-            <Select allowClear options={emotionList.map((e) => ({ label: e, value: e }))} />
-          </Form.Item>
-          <Form.Item label="Tiền tệ" name="currency">
-            <Select allowClear options={currencyList.map((c) => ({ label: c, value: c }))} />
-          </Form.Item>
-          <Form.Item label="SL lớn hơn" name="sl_min">
-            <InputNumber min={0} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item label="TP lớn hơn" name="tp_min">
-            <InputNumber min={0} style={{ width: "100%" }} />
-          </Form.Item>
+          {isPro && (
+            <>
+              <Form.Item label="Chiến lược" name="strategy">
+                <Select allowClear options={strategyList.map((s) => ({ label: s, value: s }))} />
+              </Form.Item>
+              <Form.Item label="Tags" name="tags">
+                <Select allowClear mode="tags" options={tagList.map((t) => ({ label: t, value: t }))} />
+              </Form.Item>
+              <Form.Item label="Tâm lý giao dịch" name="emotion">
+                <Select allowClear options={emotionList.map((e) => ({ label: e, value: e }))} />
+              </Form.Item>
+              <Form.Item label="Tiền tệ" name="currency">
+                <Select allowClear options={currencyList.map((c) => ({ label: c, value: c }))} />
+              </Form.Item>
+              <Form.Item label="SL lớn hơn" name="sl_min">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item label="TP lớn hơn" name="tp_min">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+            </>
+          )}
           <Form.Item label="Ngày vào lệnh từ" name="date_from">
             <DatePicker style={{ width: "100%" }} />
           </Form.Item>
@@ -478,46 +486,49 @@ export default function JournalPage() {
           <Form.Item name="exit_datetime" label="Thời điểm đóng lệnh">
             <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
           </Form.Item>
-          {/* Các trường PRO */}
-          <Form.Item name="stop_loss" label="Stop Loss">
-            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="take_profit" label="Take Profit">
-            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="commissions" label="Phí giao dịch">
-            <InputNumber min={0} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="tags" label="Tags">
-            <Select mode="tags" placeholder="Ví dụ: swing, breakout, news..." />
-          </Form.Item>
-          <Form.Item name="strategy" label="Chiến lược giao dịch">
-            <Input placeholder="Trend-following, Scalping, ..." />
-          </Form.Item>
-          <Form.Item name="emotion" label="Tâm lý giao dịch">
-            <Select
-              allowClear
-              options={[
-                { label: "Tích cực", value: "Tích cực" },
-                { label: "Bình thường", value: "Bình thường" },
-                { label: "Lo lắng", value: "Lo lắng" },
-                { label: "Hoảng loạn", value: "Hoảng loạn" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="notes" label="Ghi chú">
-            <Input.TextArea rows={3} placeholder="Nhật ký cảm xúc, quyết định, ..." />
-          </Form.Item>
-          <Form.Item name="currency" label="Tiền tệ">
-            <Select options={[
-              { label: "USD", value: "USD" },
-              { label: "VND", value: "VND" },
-              { label: "EUR", value: "EUR" },
-            ]} placeholder="Chọn tiền tệ" />
-          </Form.Item>
-          <Form.Item name="timezone" label="Múi giờ">
-            <Input placeholder="VD: Asia/Ho_Chi_Minh" />
-          </Form.Item>
+          {isPro && (
+            <>
+              <Form.Item name="stop_loss" label="Stop Loss">
+                <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="take_profit" label="Take Profit">
+                <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="commissions" label="Phí giao dịch">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="tags" label="Tags">
+                <Select mode="tags" placeholder="Ví dụ: swing, breakout, news..." />
+              </Form.Item>
+              <Form.Item name="strategy" label="Chiến lược giao dịch">
+                <Input placeholder="Trend-following, Scalping, ..." />
+              </Form.Item>
+              <Form.Item name="emotion" label="Tâm lý giao dịch">
+                <Select
+                  allowClear
+                  options={[
+                    { label: "Tích cực", value: "Tích cực" },
+                    { label: "Bình thường", value: "Bình thường" },
+                    { label: "Lo lắng", value: "Lo lắng" },
+                    { label: "Hoảng loạn", value: "Hoảng loạn" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="notes" label="Ghi chú">
+                <Input.TextArea rows={3} placeholder="Nhật ký cảm xúc, quyết định, ..." />
+              </Form.Item>
+              <Form.Item name="currency" label="Tiền tệ">
+                <Select options={[
+                  { label: "USD", value: "USD" },
+                  { label: "VND", value: "VND" },
+                  { label: "EUR", value: "EUR" },
+                ]} placeholder="Chọn tiền tệ" />
+              </Form.Item>
+              <Form.Item name="timezone" label="Múi giờ">
+                <Input placeholder="VD: Asia/Ho_Chi_Minh" />
+              </Form.Item>
+            </>
+          )}
           <Form.Item>
             <Space>
               <Button
@@ -582,46 +593,49 @@ export default function JournalPage() {
           <Form.Item name="exit_datetime" label="Thời điểm đóng lệnh">
             <DatePicker showTime format="YYYY-MM-DD HH:mm" style={{ width: "100%" }} />
           </Form.Item>
-          {/* Các trường PRO */}
-          <Form.Item name="stop_loss" label="Stop Loss">
-            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="take_profit" label="Take Profit">
-            <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="commissions" label="Phí giao dịch">
-            <InputNumber min={0} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="tags" label="Tags">
-            <Select mode="tags" />
-          </Form.Item>
-          <Form.Item name="strategy" label="Chiến lược giao dịch">
-            <Input />
-          </Form.Item>
-          <Form.Item name="emotion" label="Tâm lý giao dịch">
-            <Select
-              allowClear
-              options={[
-                { label: "Tích cực", value: "Tích cực" },
-                { label: "Bình thường", value: "Bình thường" },
-                { label: "Lo lắng", value: "Lo lắng" },
-                { label: "Hoảng loạn", value: "Hoảng loạn" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="notes" label="Ghi chú">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item name="currency" label="Tiền tệ">
-            <Select options={[
-              { label: "USD", value: "USD" },
-              { label: "VND", value: "VND" },
-              { label: "EUR", value: "EUR" },
-            ]} />
-          </Form.Item>
-          <Form.Item name="timezone" label="Múi giờ">
-            <Input />
-          </Form.Item>
+          {isPro && (
+            <>
+              <Form.Item name="stop_loss" label="Stop Loss">
+                <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="take_profit" label="Take Profit">
+                <InputNumber min={0} step={0.0001} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="commissions" label="Phí giao dịch">
+                <InputNumber min={0} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="tags" label="Tags">
+                <Select mode="tags" />
+              </Form.Item>
+              <Form.Item name="strategy" label="Chiến lược giao dịch">
+                <Input />
+              </Form.Item>
+              <Form.Item name="emotion" label="Tâm lý giao dịch">
+                <Select
+                  allowClear
+                  options={[
+                    { label: "Tích cực", value: "Tích cực" },
+                    { label: "Bình thường", value: "Bình thường" },
+                    { label: "Lo lắng", value: "Lo lắng" },
+                    { label: "Hoảng loạn", value: "Hoảng loạn" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="notes" label="Ghi chú">
+                <Input.TextArea rows={3} />
+              </Form.Item>
+              <Form.Item name="currency" label="Tiền tệ">
+                <Select options={[
+                  { label: "USD", value: "USD" },
+                  { label: "VND", value: "VND" },
+                  { label: "EUR", value: "EUR" },
+                ]} />
+              </Form.Item>
+              <Form.Item name="timezone" label="Múi giờ">
+                <Input />
+              </Form.Item>
+            </>
+          )}
           <Form.Item>
             <Button
               type="primary"

@@ -10,39 +10,52 @@ import {
 } from "firebase/auth";
 import { auth } from "../../firebaseConfig"; // Import đúng đường dẫn
 
+import { setDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../firebaseConfig"; // hoặc đường dẫn đúng theo dự án của bạn
+
+
+async function ensureUserDoc(user) {
+  const userDocRef = doc(db, "users", user.uid);
+  const userDocSnap = await getDoc(userDocRef);
+  if (!userDocSnap.exists()) {
+    await setDoc(userDocRef, {
+      email: user.email,
+      plan: "free",
+      createdAt: serverTimestamp(),
+    });
+  }
+}
+
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showResend, setShowResend] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
 
   const onFinish = async (values) => {
-    setLoading(true);
-    setLoginEmail(values.email);
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-      if (!user.emailVerified) {
-        setShowResend(true);
-        message.warning("Tài khoản chưa xác thực email! Vui lòng kiểm tra email để kích hoạt.");
-      } else {
-        const token = await user.getIdToken();
-        localStorage.setItem("token", token);
-        message.success("Đăng nhập thành công!");
-        window.location.href = "/dashboard";
-      }
-    } catch (err) {
-      if (err.code === "auth/wrong-password") {
-        message.error("Mật khẩu không đúng!");
-      } else if (err.code === "auth/user-not-found") {
-        message.error("Tài khoản không tồn tại!");
-      } else if (err.code === "auth/invalid-email") {
-        message.error("Email không hợp lệ!");
-      } else {
-        message.error(err.message || "Đăng nhập thất bại!");
-      }
+  setLoading(true);
+  setLoginEmail(values.email);
+  try {
+    // Đăng nhập Firebase Auth FE
+    const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+    const user = userCredential.user;
+    await ensureUserDoc(user); // Đảm bảo có doc trên Firestore
+    // Không check emailVerified nếu bạn không bật xác thực email
+    message.success("Đăng nhập thành công!");
+    window.location.href = "/dashboard";
+  } catch (err) {
+    if (err.code === "auth/wrong-password") {
+      message.error("Mật khẩu không đúng!");
+    } else if (err.code === "auth/user-not-found") {
+      message.error("Tài khoản không tồn tại!");
+    } else if (err.code === "auth/invalid-email") {
+      message.error("Email không hợp lệ!");
+    } else {
+      message.error(err.message || "Đăng nhập thất bại!");
     }
-    setLoading(false);
-  };
+  }
+  setLoading(false);
+};
+
 
   // Hàm gửi lại email xác thực
   const handleResend = async () => {
