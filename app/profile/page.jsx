@@ -1,12 +1,15 @@
 "use client";
 import { Card, Button, Typography, message, Spin, Tag } from "antd";
-import { useUserRedux } from "@/hooks/useUserRedux";
+import { useUserRedux } from "../../hooks/useUserRedux.js";
 import { useDispatch } from "react-redux";
-import { updatePlan } from "@/store/userSlice";
+import { updatePlan } from "../../store/userSlice.js";
+import { setLoading } from '../../store/userSlice.js';
 import axios from "axios";
 import { useState } from "react";
+import useFetchUser from "../../hooks/useFetchUser"; // THÊM DÒNG NÀY
 
 export default function ProfilePage() {
+    useFetchUser(); // THÊM DÒNG NÀY
   const { user, loading, error } = useUserRedux();
   const dispatch = useDispatch();
   const [upgrading, setUpgrading] = useState(false);
