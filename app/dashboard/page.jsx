@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Typography, Spin, Card, Tag, Button, Row, Col } from "antd";
+import { Typography, Spin, Card, Tag, Button, Row, Col, Space } from "antd";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../../firebaseConfig";
@@ -45,9 +45,16 @@ export default function DashboardPage() {
             </Tag>
           </Col>
           <Col>
-            <Button type="primary" href="/journal" size="large">
-              Quản lý nhật ký giao dịch
-            </Button>
+            <Space>
+              <Button type="primary" href="/journal" size="large">
+                Quản lý nhật ký giao dịch
+              </Button>
+              {plan === "pro" && (
+                <Button href="/dashboard/advanced" size="large">
+                  Dashboard nâng cao
+                </Button>
+              )}
+            </Space>
           </Col>
         </Row>
         <div className="mt-8">
