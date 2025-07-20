@@ -1,11 +1,14 @@
-import { Provider } from "react-redux";
-import { store } from "@/store/store";
+import "antd/dist/reset.css";
+import '../styles/globals.css';
+import Providers from '../components/Providers';
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <Provider store={store}>{children}</Provider>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

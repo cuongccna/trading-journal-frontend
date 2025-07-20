@@ -1,15 +1,21 @@
 "use client";
+
 import { Card, Button, Typography, message, Spin, Tag, Input } from "antd";
 import { useUserRedux } from "@/hooks/useUserRedux";
+
 import { useDispatch } from "react-redux";
-import { updatePlan } from "@/store/userSlice";
+import { updatePlan } from "../../store/userSlice.js";
+import { setLoading } from '../../store/userSlice.js';
 import axios from "axios";
+
 import { useState, useEffect } from "react";
 import { signOut, updateProfile } from "firebase/auth";
 import { auth, db } from "../../firebaseConfig";
 import { doc, updateDoc } from "firebase/firestore";
 
+
 export default function ProfilePage() {
+    useFetchUser(); // THÊM DÒNG NÀY
   const { user, loading, error } = useUserRedux();
   const dispatch = useDispatch();
   const [upgrading, setUpgrading] = useState(false);
