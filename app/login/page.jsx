@@ -38,6 +38,10 @@ export default function LoginPage() {
     // Đăng nhập Firebase Auth FE
     const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
     const user = userCredential.user;
+        // ===== LẤY TOKEN SAU KHI ĐĂNG NHẬP =====
+    const token = await user.getIdToken();
+    // ===== LƯU TOKEN VÀO localStorage =====
+    localStorage.setItem('token', token);
     await ensureUserDoc(user); // Đảm bảo có doc trên Firestore
     // Không check emailVerified nếu bạn không bật xác thực email
     message.success("Đăng nhập thành công!");
