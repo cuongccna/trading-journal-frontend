@@ -1,6 +1,7 @@
-import "antd/dist/reset.css";
-import '../styles/globals.css';
-import Providers from '../components/Providers';
+
+"use client";
+import { Provider } from "react-redux";
+import { store } from "@/store/store";
 
 export default function RootLayout({ children }) {
   return (
