@@ -9,6 +9,7 @@ import { setLoading } from '../../store/userSlice.js';
 import axios from "axios";
 
 import { useState, useEffect } from "react";
+import useFetchUser from "@/hooks/useFetchUser";
 import { signOut, updateProfile } from "firebase/auth";
 import { auth, db } from "../../firebaseConfig";
 import { doc, updateDoc } from "firebase/firestore";
